@@ -1,0 +1,50 @@
+# Self-hosted Infisical for CloudShift (Openship on the HP Mini Elite).
+# TLS ends at the VPS Caddy; the Openship edge forwards to the backend on 8080.
+# Every value comes from Openship service env; nothing secret lives in this repo.
+services:
+  backend:
+    image: infisical/infisical:v0.167.4
+    environment:
+      NODE_ENV: production
+      HOST: "0.0.0.0"
+      PORT: "8080"
+      SITE_URL: ${SITE_URL}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      AUTH_SECRET: ${AUTH_SECRET}
+      DB_CONNECTION_URI: ${DB_CONNECTION_URI}
+      REDIS_URL: redis://redis:6379
+      TELEMETRY_ENABLED: "false"
+      OTEL_TELEMETRY_COLLECTION_ENABLED: "false"
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  redis_data:
